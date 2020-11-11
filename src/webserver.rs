@@ -7,7 +7,6 @@ use actix_web::{
 };
 use actix_web_actors::ws;
 use actix_rt;
-use actix_files;
 
 use actix_derive::{Message};
 
@@ -18,7 +17,11 @@ use rust_embed::RustEmbed;
 use serde_json;
 use serde_json::json;
 
-use acme_client;
+use openssl::ssl::*;
+use openssl::pkey::{ PKey };
+use openssl::rsa::{ Rsa };
+
+use app_dirs;
 
 use std::env;
 use std::sync::{
@@ -27,6 +30,7 @@ use std::sync::{
 use std::path::PathBuf;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
+use std::process::Command;
 
 use crate::gui;
 
@@ -233,61 +237,58 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
   let address = format!("0.0.0.0:{}", crate::HTTP_PORT);
 
   // First get temp dir + check for SSL certs
-  let fqdn = env::var("PTRACK_FQDN").unwrap_or("publicip.jmcateer.pw");
+  let fqdn = env::var("PTRACK_FQDN").unwrap_or("publicip.jmcateer.pw".to_string());
+  let app_dir = app_dirs::app_dir(app_dirs::AppDataType::UserConfig, &crate::APP_INFO, "ssl").expect("Could not get app ssl dir");
+  // Certbot saves keys in ssl/live/publicip.jmcateer.pw/fullchain.pem
+  // and ssl/live/publicip.jmcateer.pw/privkey.pem
   let cert_pem_f = {
-    let mut f = std::env::temp_dir();
-    f.push("ptrack_certificate.pem");
+    let mut f = app_dir.clone();
+    f.push("live");
+    f.push(&fqdn);
+    f.push("fullchain.pem");
     f
   };
   let cert_key_f = {
-    let mut f = std::env::temp_dir();
-    f.push("ptrack_certificate.key");
+    let mut f = app_dir.clone();
+    f.push("live");
+    f.push(&fqdn);
+    f.push("privkey.pem");
     f
   };
+  println!("app_dir={}", &app_dir.as_path().to_string_lossy());
 
   if (!cert_pem_f.as_path().exists()) || (!cert_key_f.as_path().exists()) {
-    // Perform ACME key request
-    let directory = acme_client::Directory::lets_encrypt()?;
-    let account = directory.account_registration().register()?;
+    // Perform ACME key request using certbot;
+    // this requires root access so
+    let tmp_dir = app_dir;
+    let tmp_dir_s = tmp_dir.as_path().to_string_lossy();
+    let tmp_dir_s = &tmp_dir_s;
+    Command::new("certbot")
+      .args(&[
+        "certonly",
+        "--standalone",
+        "--non-interactive", "--agree-tos", "-m", "jeffrey.p.mcateer@gmail.com",
+        "--domains", &fqdn,
+        "--config-dir", tmp_dir_s,
+        "--work-dir", tmp_dir_s,
+        "--logs-dir", tmp_dir_s,
+      ])
+      .status()
+      .expect("Could not run certbot over :80 to get SSL certs");
+  }
 
-    // Create a identifier authorization for example.com
-    let authorization = account.authorization(fqdn)?;
-
-    // Validate ownership of example.com with http challenge
-    let http_challenge = authorization.get_http_challenge().ok_or("HTTP challenge not found")?;
-    // Puts a file under std::env::temp_dir() / .well-known/acme-challenge/
-    // We must serve this over port 80 for the challenge to work
-    http_challenge.save_key_authorization(std::env::temp_dir())?;
-
-    // Spin up small Http server over port 80 (will need admin / root)
-
-    let handler = std::thread::spawn(|| {
-      println!("ACME HTTP server starting...");
-      HttpServer::new(||  App::new().service(actix_files::Files::new("/", std::env::temp_dir()).show_files_listing()) )
-          .bind("0.0.0.0:80")?
-          .run();
-      println!("ACME HTTP server stopped");
-    });
-
-    http_challenge.validate()?;
-
-    let cert = account.certificate_signer(&[fqdn]).sign_certificate()?;
-    cert.save_signed_certificate(cert_pem_f)?;
-    cert.save_private_key(cert_key_f)?;
-
-    actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
-
-    handler.join()?;
-
+  if (!cert_pem_f.as_path().exists()) || (!cert_key_f.as_path().exists()) {
+    println!("Error: no SSL certificates exist, cannot run https server!");
+    return Ok(());
   }
 
   let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
   
   let private_k = PKey::from_rsa(
-    Rsa::private_key_from_pem( std::fs::read(&cert_key_f).unwrap() ).unwrap()
+    Rsa::private_key_from_pem( &std::fs::read(&cert_key_f).unwrap() ).unwrap()
   ).unwrap();
   let cert = openssl::x509::X509::from_pem(
-    std::fs::read(&cert_pem_f).unwrap()
+    &std::fs::read(&cert_pem_f).unwrap()
   ).unwrap();
 
   builder

@@ -14,7 +14,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   let app_local_url = format!("http://127.0.0.1:{}/", HTTP_PORT);
 
-  webbrowser::open(&app_local_url[..])?;
+  //webbrowser::open(&app_local_url[..])?;
 
   let mut app = systray::Application::new()?;
 
