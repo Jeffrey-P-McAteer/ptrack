@@ -256,15 +256,18 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
     f
   };
   println!("app_dir={}", &app_dir.as_path().to_string_lossy());
+  println!("cert_pem_f={}", &cert_pem_f.as_path().to_string_lossy());
 
   if (!cert_pem_f.as_path().exists()) || (!cert_key_f.as_path().exists()) {
     // Perform ACME key request using certbot;
     // this requires root access so
-    let tmp_dir = app_dir;
+    let tmp_dir = app_dir.clone();
     let tmp_dir_s = tmp_dir.as_path().to_string_lossy();
     let tmp_dir_s = &tmp_dir_s;
-    Command::new("certbot")
+    println!("Running Certbot");
+    Command::new("sudo")
       .args(&[
+        "certbot",
         "certonly",
         "--standalone",
         "--non-interactive", "--agree-tos", "-m", "jeffrey.p.mcateer@gmail.com",
@@ -275,6 +278,15 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
       ])
       .status()
       .expect("Could not run certbot over :80 to get SSL certs");
+
+    Command::new("sudo")
+      .args(&["sh", "-c",
+        &format!("chown -R $(whoami):$(whoami) {} ",
+          &app_dir.as_path().to_string_lossy()
+        )[..]
+      ])
+      .status()
+      .expect("Could not chown new ssl certs");
   }
 
   if (!cert_pem_f.as_path().exists()) || (!cert_key_f.as_path().exists()) {
