@@ -1,0 +1,24 @@
+<DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script type="text/javascript" src="app.js"></script>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body onload="main();">
+    <h1>Pedro's Person Tracker</h1>
+
+    <fieldset>
+      <legend>Check In</legend>
+      <form action="check-in" method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="browser-uuid">
+        <p>Name: <input type="text" name="name"></p>
+        <input type="submit" value="Check In">
+      </form>
+    </fieldset>
+
+
+  </body>
+</html>

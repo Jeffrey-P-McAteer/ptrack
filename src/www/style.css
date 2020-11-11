@@ -1,0 +1,21 @@
+html, body {
+  background-color: #e0e0e0;
+  color: #020202;
+}
+fieldset {
+  margin-bottom: 40pt;
+}
+fieldset, legend {
+  background-color: #fefefe;
+  border: 1px solid black;
+}
+legend {
+  padding: 4pt 8pt;
+  border-bottom-width: 0px;
+  font-weight: bold;
+}
+#last_report {
+  width: 100%;
+  min-height: 300pt;
+  border: 1px solid black;
+}
