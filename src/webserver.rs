@@ -32,8 +32,6 @@ use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::process::Command;
 
-use crate::gui;
-
 #[derive(RustEmbed)]
 #[folder = "src/www"]
 struct WWWAssets;
