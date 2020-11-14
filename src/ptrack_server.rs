@@ -2,6 +2,7 @@
 use app_dirs::AppInfo;
 
 use std::env;
+use std::process::Command;
 
 mod webserver;
 
@@ -16,6 +17,34 @@ fn main() {
     let arg = &arg[..];
     if arg == "help" {
       println!("TODO not sure if we need arguments;");
+      return;
+    }
+    else if arg == "install-and-run-systemd-service" { // MAN I am good at naming things
+      Command::new("sh")
+            .args(&["-s", r#"
+set -e
+if ! [ -e /etc/systemd/system/ptrack.service ] ; then
+  sudo tee -a /etc/systemd/system/ptrack.service <<<EOF
+[Unit]
+Description=Person Tracker (ptrack)
+
+[Service]
+Type=simple
+User=root # TODO maybe someone else?
+ExecStart=/opt/ptrack/ptrack-server
+WorkingDirectory=/opt/ptrack/
+Restart=always
+
+[Install]
+WantedBy=default.target
+EOF
+fi
+
+sudo systemctl restart ptrack.service
+
+"#])
+            .status()
+            .expect("failed to execute process");
       return;
     }
   }
